@@ -9,7 +9,7 @@ import json
 import os
 
 from opspilot.analyzers.base import Finding
-from opspilot.llm.base import Explanation
+from opspilot.llm.base import Explanation, parse_explanation_json
 
 _SYSTEM_PROMPT = (
     "You are OpsPilot, a production incident investigator. You are given "
@@ -67,10 +67,4 @@ class OpenAILLMProvider:
             ],
         )
 
-        data = json.loads(response.choices[0].message.content)
-
-        return Explanation(
-            root_cause=data["root_cause"],
-            confidence=data["confidence"],
-            recommendation=data["recommendation"],
-        )
+        return parse_explanation_json(response.choices[0].message.content, source="OpenAI")

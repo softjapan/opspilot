@@ -9,6 +9,7 @@ Expects the custom `opspilot` log_format defined in demo/nginx-demo/nginx.conf:
 from __future__ import annotations
 
 import re
+from collections import Counter
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -84,17 +85,22 @@ class NginxAnalyzer:
 
             error_entries = [entry for entry in entries if entry.status >= 500]
             if error_entries:
-                worst = error_entries[0]
+                # Report the most frequent status code, not just whichever
+                # happened to be logged first — a single transient 500
+                # shouldn't overshadow a systematic run of 502s.
+                dominant_status, dominant_count = Counter(entry.status for entry in error_entries).most_common(1)[0]
+                representative = next(entry for entry in error_entries if entry.status == dominant_status)
                 findings.append(
                     Finding(
                         analyzer=self.name,
-                        title=f"{worst.status} response from upstream",
+                        title=f"{dominant_status} response from upstream",
                         evidence={
-                            "method": worst.method,
-                            "path": worst.path,
-                            "status": worst.status,
-                            "occurrences": len(error_entries),
+                            "method": representative.method,
+                            "path": representative.path,
+                            "status": dominant_status,
+                            "occurrences": dominant_count,
                         },
+                        detail="Check that the upstream service behind this route is running and reachable from nginx.",
                     )
                 )
 

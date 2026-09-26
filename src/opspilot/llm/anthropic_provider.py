@@ -9,7 +9,7 @@ import json
 import os
 
 from opspilot.analyzers.base import Finding
-from opspilot.llm.base import Explanation
+from opspilot.llm.base import Explanation, parse_explanation_json
 
 _SYSTEM_PROMPT = (
     "You are OpsPilot, a production incident investigator. You are given "
@@ -68,10 +68,4 @@ class AnthropicLLMProvider:
         )
 
         text = "".join(block.text for block in message.content if block.type == "text")
-        data = json.loads(text)
-
-        return Explanation(
-            root_cause=data["root_cause"],
-            confidence=data["confidence"],
-            recommendation=data["recommendation"],
-        )
+        return parse_explanation_json(text, source="Anthropic")

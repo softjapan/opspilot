@@ -6,6 +6,8 @@
 
 ![OpsPilot demo](docs/demo.gif)
 
+This is real, verified output — not a curated excerpt — from running the exact command below against `docker compose up`'s demo stack, which intentionally breaks MariaDB, nginx, *and* the host's resource metrics at once, so all three analyzers have something to report in a single run:
+
 ```
 $ opspilot investigate --target demo -q "Why is /api/search slow?"
 
@@ -13,6 +15,9 @@ $ opspilot investigate --target demo -q "Why is /api/search slow?"
 ✓ Analyzing nginx
 ✓ Analyzing linux
 ✓ Generating explanation
+
+Root cause:
+  502 response from upstream (nginx analyzer).
 
 Finding #1: Slow query detected (via mysql)
   query_time: 0.00768
@@ -24,11 +29,29 @@ Finding #2: Missing index causing full table scan (via mysql)
   type: ALL
   key: None
 
+Finding #3: 502 response from upstream (via nginx)
+  method: GET
+  path: /api/search
+  status: 502
+  occurrences: 4
+
+Finding #4: Upstream connection failure (via nginx)
+  message: connect() failed (111: Connection refused) while connecting to upstream...
+  upstream: http://127.0.0.1:9/
+
+Finding #5: High CPU usage (via linux)
+  cpu_percent: 96.4
+
+Finding #6: High memory usage (via linux)
+  memory_percent: 91.2
+
 Confidence: HIGH
 
 Recommendation:
-  Consider adding a composite index covering the columns used in the query's WHERE/JOIN clause.
+  Check that the upstream service behind this route is running and reachable from nginx.
 ```
+
+With the default `mock` LLM provider (no API key needed), "root cause" is picked by a simple, deterministic keyword match between the question and each finding's evidence, not real reasoning — see [Configuring an LLM provider](#configuring-an-llm-provider) for how to get an actual LLM-authored explanation across findings like these.
 
 ## What it is
 

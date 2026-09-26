@@ -10,8 +10,9 @@ from __future__ import annotations
 import json
 import queue
 import threading
+import time
 import uuid
-from dataclasses import asdict
+from dataclasses import asdict, dataclass
 from typing import Any
 
 from fastapi import FastAPI, HTTPException
@@ -32,7 +33,28 @@ app.add_middleware(
 )
 
 _DONE = object()
-_event_queues: dict[str, "queue.Queue[Any]"] = {}
+
+# How long an investigation's queue is kept if nobody ever streams its
+# events (e.g. a client that POSTs and never connects to the SSE endpoint).
+# There's no auth/persistence in v1, so this lazy sweep — run on every new
+# POST — is enough to keep memory bounded without a background thread.
+_ABANDONED_TTL_SECONDS = 300.0
+
+
+@dataclass
+class _Investigation:
+    event_queue: "queue.Queue[Any]"
+    created_at: float
+
+
+_investigations: dict[str, _Investigation] = {}
+
+
+def _evict_abandoned_investigations() -> None:
+    cutoff = time.monotonic() - _ABANDONED_TTL_SECONDS
+    stale_ids = [inv_id for inv_id, inv in _investigations.items() if inv.created_at < cutoff]
+    for inv_id in stale_ids:
+        _investigations.pop(inv_id, None)
 
 
 class InvestigationRequest(BaseModel):
@@ -51,9 +73,11 @@ def create_investigation(body: InvestigationRequest) -> InvestigationCreated:
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
+    _evict_abandoned_investigations()
+
     investigation_id = uuid.uuid4().hex
     event_queue: queue.Queue[Any] = queue.Queue()
-    _event_queues[investigation_id] = event_queue
+    _investigations[investigation_id] = _Investigation(event_queue=event_queue, created_at=time.monotonic())
 
     def on_progress(step: str) -> None:
         event_queue.put({"type": "progress", "step": step})
@@ -73,18 +97,18 @@ def create_investigation(body: InvestigationRequest) -> InvestigationCreated:
 
 @app.get("/investigations/{investigation_id}/events")
 def stream_events(investigation_id: str) -> StreamingResponse:
-    event_queue = _event_queues.get(investigation_id)
-    if event_queue is None:
+    investigation = _investigations.get(investigation_id)
+    if investigation is None:
         raise HTTPException(status_code=404, detail="Unknown investigation id")
 
     def event_stream():
         try:
             while True:
-                item = event_queue.get()
+                item = investigation.event_queue.get()
                 if item is _DONE:
                     break
                 yield f"data: {json.dumps(item)}\n\n"
         finally:
-            _event_queues.pop(investigation_id, None)
+            _investigations.pop(investigation_id, None)
 
     return StreamingResponse(event_stream(), media_type="text/event-stream")

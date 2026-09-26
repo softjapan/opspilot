@@ -113,14 +113,20 @@ def run_explain(connection_kwargs: dict[str, Any], sql: str) -> list[dict[str, A
         connection.close()
 
 
+def is_available(target: InvestigationTarget) -> bool:
+    """Whether this analyzer has a slow log it can actually read for `target`.
+
+    Shared by `MySQLAnalyzer.run()` and the CLI's pre-flight check so the
+    "is the demo stack up" rule is defined in exactly one place.
+    """
+    return target.mysql is not None and target.mysql.slow_log_path.exists()
+
+
 class MySQLAnalyzer:
     name = "mysql"
 
     def run(self, target: InvestigationTarget) -> list[Finding]:
-        if target.mysql is None:
-            return []
-
-        if not target.mysql.slow_log_path.exists():
+        if not is_available(target):
             return []
 
         entries = parse_slow_log(target.mysql.slow_log_path)

@@ -21,9 +21,14 @@ _PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
         "bearer_token",
         re.compile(r"(?i)\b(bearer|token)\s+[A-Za-z0-9._-]{8,}"),
     ),
-    ("credit_card", re.compile(r"\b(?:\d[ -]?){13,16}\b")),
-    # Coarse catch-all for API-key-shaped strings (long, no whitespace).
-    ("long_secret_like", re.compile(r"\b[A-Za-z0-9_-]{24,}\b")),
+    # Requires explicit group delimiters (as real, screen-formatted card
+    # numbers almost always have) so a bare digit run — a timestamp, a row
+    # count, an id — isn't mistaken for one.
+    ("credit_card", re.compile(r"\b\d{4}[ -]\d{4}[ -]\d{4}[ -]\d{1,7}\b")),
+    # Catch-all for API-key-shaped strings: long, and mixing letters with at
+    # least one digit (typical of tokens/hashes) — excludes long but purely
+    # alphabetic identifiers such as table/column names.
+    ("long_secret_like", re.compile(r"\b(?=[A-Za-z0-9_-]*\d)[A-Za-z0-9_-]{32,}\b")),
 )
 
 
@@ -35,14 +40,17 @@ def redact_text(text: str) -> str:
     return redacted
 
 
+def _redact_value(value: Any) -> Any:
+    if isinstance(value, str):
+        return redact_text(value)
+    if isinstance(value, dict):
+        return {key: _redact_value(v) for key, v in value.items()}
+    if isinstance(value, list):
+        return [_redact_value(v) for v in value]
+    return value
+
+
 def redact_evidence(evidence: dict[str, Any]) -> dict[str, Any]:
-    """Recursively apply `redact_text` to every string value in `evidence`."""
-    result: dict[str, Any] = {}
-    for key, value in evidence.items():
-        if isinstance(value, str):
-            result[key] = redact_text(value)
-        elif isinstance(value, dict):
-            result[key] = redact_evidence(value)
-        else:
-            result[key] = value
-    return result
+    """Recursively apply `redact_text` to every string value in `evidence`,
+    including strings nested inside lists and dicts."""
+    return {key: _redact_value(value) for key, value in evidence.items()}

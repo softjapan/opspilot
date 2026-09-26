@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import typer
 
+from opspilot.analyzers.mysql import is_available as mysql_is_available
 from opspilot.cli.evals import evals_app
 from opspilot.investigate import Report, investigate
 from opspilot.targets import get_target
@@ -44,7 +45,7 @@ def investigate_(
         typer.secho(str(exc), fg=typer.colors.RED)
         raise typer.Exit(code=1) from exc
 
-    if inv_target.mysql is not None and not inv_target.mysql.slow_log_path.exists():
+    if inv_target.mysql is not None and not mysql_is_available(inv_target):
         typer.secho(
             f"Demo slow log not found at {inv_target.mysql.slow_log_path}.\n"
             "Run `docker compose up -d` first to start the demo stack.",
@@ -55,7 +56,13 @@ def investigate_(
     def on_progress(step: str) -> None:
         typer.echo(f"✓ {step}")
 
-    report = investigate(inv_target, question, on_progress=on_progress)
+    try:
+        report = investigate(inv_target, question, on_progress=on_progress)
+    except Exception as exc:  # noqa: BLE001 - surface any analyzer/LLM failure as a clean CLI error
+        typer.echo("")
+        typer.secho(str(exc), fg=typer.colors.RED)
+        raise typer.Exit(code=1) from exc
+
     _print_report(report)
 
 
