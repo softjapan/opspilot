@@ -1,0 +1,58 @@
+services:
+  mariadb-demo:
+    image: mariadb:11
+    container_name: opspilot-mariadb-demo
+    environment:
+      MARIADB_ROOT_PASSWORD: opspilot
+      MARIADB_DATABASE: opspilot_demo
+    ports:
+      - "3307:3306"
+    volumes:
+      - ./demo/mariadb-demo/conf.d:/etc/mysql/conf.d:ro
+      - ./demo/mariadb-demo/init:/docker-entrypoint-initdb.d:ro
+      - ./demo/mariadb-demo/logs:/var/log/mysql
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  nginx-demo:
+    build:
+      context: ./demo/nginx-demo
+    container_name: opspilot-nginx-demo
+    ports:
+      - "8080:80"
+    volumes:
+      - ./demo/nginx-demo/logs:/var/log/nginx
+
+  opspilot-api:
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+    container_name: opspilot-api
+    ports:
+      - "8000:8000"
+    environment:
+      OPSPILOT_LLM_PROVIDER: mock
+      OPSPILOT_DEMO_MYSQL_HOST: mariadb-demo
+      OPSPILOT_DEMO_MYSQL_PORT: "3306"
+    volumes:
+      - ./demo:/app/demo:ro
+    depends_on:
+      mariadb-demo:
+        condition: service_healthy
+      nginx-demo:
+        condition: service_started
+
+  opspilot-web:
+    build:
+      context: ./web
+      dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_API_BASE_URL: http://localhost:8000
+    container_name: opspilot-web
+    ports:
+      - "3000:3000"
+    depends_on:
+      - opspilot-api

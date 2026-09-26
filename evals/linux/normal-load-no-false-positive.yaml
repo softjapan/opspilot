@@ -1,0 +1,13 @@
+id: linux-normal-load-no-false-positive
+category: linux
+description: All resource metrics well below threshold.
+question: "Is the host under load?"
+fixtures:
+  linux:
+    stats:
+      cpu_percent: 12.0
+      memory_percent: 30.0
+      disk_percent: 40.0
+expect:
+  findings_include: []
+  findings_exclude: ["High CPU usage", "High memory usage", "Disk nearly full"]

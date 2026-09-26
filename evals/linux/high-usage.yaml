@@ -1,0 +1,14 @@
+id: linux-high-usage
+category: linux
+description: CPU and memory both above threshold.
+question: "Is the host under load?"
+fixtures:
+  linux:
+    stats:
+      cpu_percent: 96.4
+      memory_percent: 91.2
+      disk_percent: 40.0
+expect:
+  findings_include: ["High CPU usage", "High memory usage"]
+  findings_exclude: ["Disk nearly full"]
+  root_cause_keywords: ["cpu", "memory"]

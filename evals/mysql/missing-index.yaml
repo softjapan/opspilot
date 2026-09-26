@@ -1,0 +1,20 @@
+id: mysql-missing-index
+category: mysql
+description: Full table scan caused by a missing composite index.
+question: "Why is /api/search slow?"
+fixtures:
+  mysql:
+    slow_log: |
+      # Time: 2026-01-01T00:00:00.000000Z
+      # Query_time: 12.5  Lock_time: 0.000000 Rows_sent: 3  Rows_examined: 70000
+      SET timestamp=1700000000;
+      SELECT * FROM m_staff WHERE m_staff_mall_id = 5 AND m_staff_pc_disp = 1;
+    explain_rows:
+      - table: m_staff
+        type: ALL
+        key: null
+        rows: 70000
+expect:
+  findings_include: ["Missing index causing full table scan"]
+  findings_exclude: []
+  root_cause_keywords: ["index"]

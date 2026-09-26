@@ -1,0 +1,13 @@
+id: nginx-upstream-502
+category: nginx
+description: nginx returns 502 because the upstream connection is refused.
+question: "Why is /api/search returning errors?"
+fixtures:
+  nginx:
+    access_log: |
+      127.0.0.1 - [26/Sep/2026:10:00:00 +0000] "GET /api/search HTTP/1.1" 502 157 rt=0.002 urt="-"
+    error_log: |
+      2026/09/26 10:00:00 [error] 1#1: *1 connect() failed (111: Connection refused) while connecting to upstream, client: 127.0.0.1, server: , request: "GET /api/search HTTP/1.1", upstream: "http://127.0.0.1:9/", host: "localhost"
+expect:
+  findings_include: ["502 response from upstream", "Upstream connection failure"]
+  root_cause_keywords: ["upstream", "502", "connection"]

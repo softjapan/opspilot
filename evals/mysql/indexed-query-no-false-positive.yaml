@@ -1,0 +1,19 @@
+id: mysql-indexed-query-no-false-positive
+category: mysql
+description: A slow-ish query that DOES use an index — must not be flagged as missing-index.
+question: "Why is this query slow?"
+fixtures:
+  mysql:
+    slow_log: |
+      # Time: 2026-01-01T00:00:00.000000Z
+      # Query_time: 1.2  Lock_time: 0.000000 Rows_sent: 1  Rows_examined: 1
+      SET timestamp=1700000000;
+      SELECT * FROM m_staff WHERE id = 42;
+    explain_rows:
+      - table: m_staff
+        type: const
+        key: PRIMARY
+        rows: 1
+expect:
+  findings_include: ["Slow query detected"]
+  findings_exclude: ["Missing index causing full table scan"]

@@ -1,0 +1,12 @@
+id: nginx-healthy-no-false-positive
+category: nginx
+description: All requests succeed — no findings should be produced.
+question: "Is /api/search healthy?"
+fixtures:
+  nginx:
+    access_log: |
+      127.0.0.1 - [26/Sep/2026:10:00:00 +0000] "GET /api/search HTTP/1.1" 200 512 rt=0.050 urt="0.048"
+    error_log: ""
+expect:
+  findings_include: []
+  findings_exclude: ["502 response from upstream", "Upstream connection failure", "Slow upstream response"]
